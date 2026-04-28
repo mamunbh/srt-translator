@@ -3,7 +3,7 @@ import google.generativeai as genai
 import pysrt
 
 # আপনার API Key এখানে বসান
-GEN_AI_KEY = "AIzaSyAnBG1-WCtEygZbgNbUqP7xs-ZKb24mpTI"
+GEN_AI_KEY = "AIzaSyBPGj_Rr3_JaWxdGqfnQs_BDokp_hQApVI"
 
 genai.configure(api_key=GEN_AI_KEY)
 model = genai.GenerativeModel('gemini-pro')
