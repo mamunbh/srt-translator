@@ -1,56 +1,53 @@
 import streamlit as st
-from googletrans import Translator
-import time
+import google.generativeai as genai
+import pysrt
+import io
 
-st.set_page_config(page_title="Fast SRT Translator", page_icon="⚡")
+# আপনার API Key এখানে বসান
+GEN_AI_KEY = "AIzaSyAnBG1-WCtEygZbgNbUqP7xs-ZKb24mpTI"
 
-st.title("⚡ Fast & Smart SRT Translator")
-st.write("এখন অনুবাদ হবে আরও দ্রুত এবং নিখুঁত!")
+genai.configure(api_key=GEN_AI_KEY)
+model = genai.GenerativeModel('gemini-pro')
 
-def batch_translate(text_list, target_lang='bn'):
-    translator = Translator()
+st.set_page_config(page_title="AI Subtitle Translator", page_icon="🎬")
+st.title("🎬 AI Smart SRT Translator")
+st.write("এটি Google Translate নয়, এটি Gemini AI দিয়ে মানুষের মতো অনুবাদ করবে।")
+
+def ai_translate(text):
+    prompt = f"Translate the following movie subtitle text into natural, conversational Bengali. Keep the emotion and context intact. Don't do literal translation: \n\n{text}"
     try:
-        # অনেকগুলো লাইন একসাথে অনুবাদ করার চেষ্টা করবে
-        translations = translator.translate(text_list, dest=target_lang)
-        return [t.text for t in translations]
+        response = model.generate_content(prompt)
+        return response.text
     except:
-        return text_list
+        return text
 
-def process_srt(content):
-    lines = content.split('\n')
-    translated_lines = []
-    text_to_translate = []
-    indices_to_replace = []
-    
-    progress_bar = st.progress(0)
-    
-    for i, line in enumerate(lines):
-        # সময় বা নাম্বার বাদে শুধু কথাগুলো আলাদা করা
-        if line.strip() and not line.strip().isdigit() and '-->' not in line:
-            text_to_translate.append(line)
-            indices_to_replace.append(i)
-        translated_lines.append(line)
-
-    # একবারে ২০টি করে লাইন অনুবাদ হবে (যাতে গতি বাড়ে)
-    batch_size = 20
-    for i in range(0, len(text_to_translate), batch_size):
-        batch = text_to_translate[i : i + batch_size]
-        translated_batch = batch_translate(batch)
-        
-        for j, translated_text in enumerate(translated_batch):
-            original_index = indices_to_replace[i + j]
-            translated_lines[original_index] = translated_text
-            
-        progress_bar.progress(min((i + batch_size) / len(text_to_translate), 1.0))
-        
-    return '\n'.join(translated_lines)
-
-uploaded_file = st.file_uploader("আপনার .srt ফাইলটি দিন", type=["srt"])
+uploaded_file = st.file_uploader("আপনার .srt ফাইলটি এখানে দিন", type=["srt"])
 
 if uploaded_file is not None:
-    if st.button("স্মার্ট অনুবাদ শুরু করুন"):
-        with st.spinner('কাজ চলছে... দ্রুত শেষ হবে!'):
+    if st.button("AI অনুবাদ শুরু করুন"):
+        with st.spinner('AI আপনার মুভির প্রেক্ষাপট বুঝে অনুবাদ করছে... একটু সময় লাগতে পারে।'):
+            # ফাইলটি পড়ার নিয়ম
             content = uploaded_file.read().decode("utf-8")
-            result = process_srt(content)
-            st.success("কাজ শেষ!")
-            st.download_button("ডাউনলোড করুন", result, "translated_bn.srt")
+            subs = pysrt.from_string(content)
+            
+            progress_bar = st.progress(0)
+            total = len(subs)
+            
+            # স্পিড বাড়ানোর জন্য ৫টি করে লাইন একসাথে পাঠানো হচ্ছে
+            for i in range(0, total, 5):
+                batch = subs[i:i+5]
+                combined_text = "\n".join([sub.text for sub in batch])
+                translated_text = ai_translate(combined_text)
+                
+                # অনুবাদগুলো আবার লাইনে ভাগ করে বসানো
+                translated_lines = translated_text.split('\n')
+                for j, sub in enumerate(batch):
+                    if j < len(translated_lines):
+                        sub.text = translated_lines[j]
+                
+                progress_bar.progress(min((i + 5) / total, 1.0))
+
+            # ফাইলটি তৈরি করা
+            output_srt = subs.to_string()
+            st.success("অভিনন্দন! AI অনুবাদ সম্পন্ন হয়েছে।")
+            st.download_button("বাংলা সাবটাইটেল ডাউনলোড করুন", output_srt, file_name="ai_translated.srt")
